@@ -1,15 +1,13 @@
-"""Fixtures for the live Objects API suite (https://api.restful-api.dev).
+"""Shared fixtures for the orders API test suite.
 
-This target is a real, public, internet-facing service that needs no credentials,
-which makes it useful for proving the pipeline end to end. It is a shared sandbox:
-anyone can read and write it, so tests never assume the collection is unchanged
-between two calls.
+Configuration comes from environment variables so no credentials or hostnames
+are ever committed:
 
-Configuration:
-    API_BASE_URL     default https://api.restful-api.dev
-    OBJECTS_PATH     default /objects
-    REQUEST_TIMEOUT  default 15 (public host, be generous)
-    MAX_LATENCY_MS   default 5000 (internet round trip, not localhost)
+    API_BASE_URL   e.g. https://api.example.com/v1   (required)
+    API_TOKEN      bearer token                      (required if the API is authenticated)
+    ORDERS_PATH    path to the orders collection      (default: /orders)
+    REQUEST_TIMEOUT seconds before a request fails    (default: 10)
+    MAX_LATENCY_MS latency budget per request         (default: 2000)
 """
 
 import os
@@ -18,79 +16,105 @@ import time
 import pytest
 import requests
 
-DEFAULT_BASE = "https://api.restful-api.dev"
+
+def _require(name):
+    value = os.environ.get(name)
+    if not value:
+        pytest.skip(f"{name} is not set - skipping live API tests", allow_module_level=False)
+    return value
 
 
 @pytest.fixture(scope="session")
 def base_url():
-    return os.environ.get("API_BASE_URL", DEFAULT_BASE).rstrip("/")
+    return _require("API_BASE_URL").rstrip("/")
 
 
 @pytest.fixture(scope="session")
-def objects_url(base_url):
-    return f"{base_url}{os.environ.get('OBJECTS_PATH', '/objects')}"
+def orders_path():
+    return os.environ.get("ORDERS_PATH", "/orders")
+
+
+@pytest.fixture(scope="session")
+def orders_url(base_url, orders_path):
+    return f"{base_url}{orders_path}"
 
 
 @pytest.fixture(scope="session")
 def timeout():
-    return float(os.environ.get("REQUEST_TIMEOUT", "15"))
+    return float(os.environ.get("REQUEST_TIMEOUT", "10"))
 
 
 @pytest.fixture(scope="session")
 def max_latency_ms():
-    return float(os.environ.get("MAX_LATENCY_MS", "5000"))
+    return float(os.environ.get("MAX_LATENCY_MS", "2000"))
 
 
 @pytest.fixture(scope="session")
-def client(timeout):
-    """Session with retry-on-429 and a courtesy gap between calls.
+def auth_headers():
+    token = os.environ.get("API_TOKEN")
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
 
-    This is a free public service; hammering it is both rude and a good way to
-    get rate limited mid-run.
-    """
+
+@pytest.fixture(scope="session")
+def client(auth_headers, timeout):
+    """A requests session that rate-limits itself and never logs the token."""
     session = requests.Session()
-    session.headers.update({"Accept": "application/json", "Content-Type": "application/json"})
-    original = session.request
+    session.headers.update(auth_headers)
 
-    def polite(method, url, **kwargs):
+    original_request = session.request
+
+    def throttled(method, url, **kwargs):
         kwargs.setdefault("timeout", timeout)
-        response = original(method, url, **kwargs)
-        time.sleep(0.2)
+        response = original_request(method, url, **kwargs)
+        time.sleep(0.1)  # be polite; avoid tripping rate limits
         if response.status_code == 429:
-            time.sleep(float(response.headers.get("Retry-After", "3")))
-            response = original(method, url, **kwargs)
+            retry_after = float(response.headers.get("Retry-After", "2"))
+            time.sleep(retry_after)
+            response = original_request(method, url, **kwargs)
         return response
 
-    session.request = polite
+    session.request = throttled
     yield session
     session.close()
 
 
 @pytest.fixture
-def sample_object():
-    """A payload matching the shape the API actually accepts."""
+def sample_order():
+    """Minimal valid order payload.
+
+    ADJUST THIS to match your schema - it is the one place the suite makes
+    assumptions about your data model.
+    """
     return {
-        "name": "CI Test Device",
-        "data": {"color": "Graphite", "capacity": "256 GB", "price": 499.99},
+        "customerId": "test-customer-001",
+        "items": [{"sku": "TEST-SKU-1", "quantity": 2, "unitPrice": 9.99}],
+        "currency": "USD",
     }
 
 
 @pytest.fixture
-def created_object(client, objects_url, sample_object):
-    """Create an object for one test and always delete it afterwards."""
-    response = client.post(objects_url, json=sample_object)
+def created_order(client, orders_url, sample_order):
+    """Create an order for a test, then always clean it up afterwards."""
+    response = client.post(orders_url, json=sample_order)
     if response.status_code not in (200, 201):
-        pytest.fail(f"Setup failed: POST returned {response.status_code} - {response.text[:300]}")
-    created = response.json()
-    assert created.get("id"), f"Create response has no id. Keys: {list(created)}"
+        pytest.fail(
+            f"Setup failed: POST {orders_url} returned {response.status_code} "
+            f"- {response.text[:300]}"
+        )
+    order = response.json()
+    order_id = order.get("id") or order.get("orderId")
+    assert order_id, f"Created order has no id field. Body keys: {list(order)}"
 
-    yield created
+    yield order
 
-    client.delete(f"{objects_url}/{created['id']}")
+    client.delete(f"{orders_url}/{order_id}")
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "happy_path: valid-input checks")
+    config.addinivalue_line("markers", "happy_path: valid-input checks per endpoint")
     config.addinivalue_line("markers", "schema: response contract validation")
     config.addinivalue_line("markers", "e2e: multi-step lifecycle flows")
     config.addinivalue_line("markers", "destructive: creates or deletes real data")
