@@ -1,0 +1,70 @@
+{
+  "description": "Tests an HTTP/REST API end to end: happy-path checks on every endpoint, response\nschema validation against an OpenAPI/JSON Schema contract, and multi-step E2E flow\nchecks (create -> read -> update -> delete, auth, pagination). Produces a runnable\npytest suite plus a pass/fail test report. Use when the user says \"test my API\",\n\"run happy path tests\", \"validate the API response schema\", \"check my OpenAPI\ncontract\", \"write E2E tests for this endpoint\", \"smoke test this service\", or\nshares a Swagger/OpenAPI spec or a base URL to verify. Do NOT use for UI/browser\ntesting, load or performance testing, security penetration testing, or for calling\nMicrosoft 365 Graph endpoints on the user's behalf.\n",
+  "description_length": {
+    "detail": "700/1024 UTF-16 units",
+    "headroom_units": 324,
+    "max_units": 1024,
+    "status": "PASS",
+    "units": 700
+  },
+  "dimension_notes": {
+    "instruction_specificity": [
+      "21 workflow line(s)",
+      "has Quick Start / example block",
+      "no specific tools named",
+      "specifies output format"
+    ],
+    "robustness": [
+      "has Guardrails section",
+      "5 guardrail-style rule(s)",
+      "handles missing-data / failure"
+    ],
+    "scope_boundaries": [
+      "has 'When NOT to Use' section",
+      "description states exclusions",
+      "focused single-domain scope"
+    ],
+    "trigger_clarity": [
+      "6 explicit trigger phrase(s)",
+      "has exclusion clause"
+    ]
+  },
+  "dimension_semantics": "advisory-only",
+  "dimensions": {
+    "instruction_specificity": 22,
+    "robustness": 19,
+    "scope_boundaries": 23,
+    "trigger_clarity": 25
+  },
+  "faithfulness": {
+    "detail": "instructs grounding / no-fabrication",
+    "status": "PASS"
+  },
+  "grade": "Excellent",
+  "improvements": [],
+  "mvb_pass": true,
+  "mvb_threshold": 80,
+  "path": "working/api-testing/SKILL.md",
+  "risk": {
+    "factors": [
+      "takes actions (autonomy / blast radius)",
+      "touches sensitive data",
+      "destructive operations"
+    ],
+    "launch_floor": 80,
+    "requires_behavioral": true,
+    "requires_human_review": true,
+    "tier": "high"
+  },
+  "rubric_version": "2",
+  "safety": [
+    {
+      "area": "destructive",
+      "detail": "Touches 'destructive' scope",
+      "status": "WARN"
+    }
+  ],
+  "skill_name": "api-testing",
+  "timestamp": "2026-08-13 06:32 UTC",
+  "total": 89
+}
