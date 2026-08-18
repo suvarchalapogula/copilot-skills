@@ -17,7 +17,7 @@ import json
 import sys
 import uuid
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 VALID_TOKEN = "test-token"
@@ -193,4 +193,4 @@ if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     _seed()
     print(f"Mock orders API listening on http://127.0.0.1:{port} ({len(ORDERS)} seeded orders)")
-    HTTPServer(("127.0.0.1", port), OrdersHandler).serve_forever()
+    ThreadingHTTPServer(("127.0.0.1", port), OrdersHandler).serve_forever()
